@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "cambodian-scraper"
+version = "0.1.0"
+description = ""
+authors = ["Joshua Westphal da Silva <joshuasilva333@gmail.com>"]
+readme = "README.md"
+packages = [{include = "cambodian_scraper"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+Scrapy = "^2.8.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
