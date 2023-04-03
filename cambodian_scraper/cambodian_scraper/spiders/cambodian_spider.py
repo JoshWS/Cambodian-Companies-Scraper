@@ -1,4 +1,7 @@
 import scrapy
+from scrapy.loader import ItemLoader
+from parsel import Selector
+from cambodian_scraper.items import CambodianCompanyItem
 from scrapy_playwright.page import PageMethod
 
 
@@ -21,7 +24,7 @@ class CambodianSpiderSpider(scrapy.Spider):
     }
 
     def start_requests(self):
-        for link in range(201, int(202)):
+        for link in range(1, int(2)):
             url = "https://www.businessregistration.moc.gov.kh/cambodia-master/relay.html?url=https%3A%2F%2Fwww.businessregistration.moc.gov.kh%2Fcambodia-master%2Fservice%2Fcreate.html%3FtargetAppCode%3Dcambodia-master%26targetRegisterAppCode%3Dcambodia-br-companies%26service%3DregisterItemSearch&target=cambodia-master"
             yield scrapy.Request(
                 url,
@@ -67,10 +70,6 @@ class CambodianSpiderSpider(scrapy.Spider):
             )
 
     async def parse(self, response):
-        print("____________________")
-        print(response.meta["link"])
-        print("____________________")
-
         page = response.meta["playwright_page"]
         company = response.meta["link"]
         if company / 200 > 1:
@@ -91,26 +90,38 @@ class CambodianSpiderSpider(scrapy.Spider):
         await page.wait_for_selector(
             "//*[@id='cambodia-br-companies_brViewLocalCompany']/span"
         )
-        await self.scrape_general(page)
-
+        # await self.scrape_general(response)
+        l = ItemLoader(item=CambodianCompanyItem(), selector=response)
+        # l.add_xpath(
+        #     "company_name_in_english",
+        #     "//div[contains (@class, 'brViewLocalCompany-tabsBox-detailsTab-details-localNameBox-currentEntityNames-currentEntityName-notNumberNameBox-currentNameWithResBox-notResNameOnlyBox-resNameSelectorBox-item1-ReservedName appAttribute')]/div[2]/text()",
+        # )
+        name = page.query_selector("//*[@id='nodeW539']/div[2]/text()")
+        print(
+            "_________________________________________________________________________"
+        )
+        print(name)
+        print(
+            "_________________________________________________________________________"
+        )
         await page.close()
+        # return l.load_item()
 
-    async def scrape_general(self, response):
-        print("___________________")
-        print("scraped general")
-        print("___________________")
-        await self.scrape_addresses(response)
+    # async def scrape_general(self, response):
 
-    async def scrape_addresses(self, response):
-        print("___________________")
-        print("scraped addresses")
-        print("___________________")
-        await self.scrape_directors(response)
+    #     # await self.scrape_addresses(response)
+    #     return l.load_item()
 
-    async def scrape_directors(self, response):
-        print("___________________")
-        print("scraped directors")
-        print("___________________")
+    # async def scrape_addresses(self, response):
+    #     print("___________________")
+    #     print("scraped addresses")
+    #     print("___________________")
+    #     await self.scrape_directors(response)
+
+    # async def scrape_directors(self, response):
+    #     print("___________________")
+    #     print("scraped directors")
+    #     print("___________________")
 
     async def errback(self, failure):
         page = failure.request.meta["playwright_page"]
