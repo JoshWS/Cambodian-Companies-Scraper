@@ -3,6 +3,8 @@ from scrapy.loader import ItemLoader
 from parsel import Selector
 from cambodian_scraper.items import CambodianCompanyItem
 from scrapy_playwright.page import PageMethod
+from bs4 import BeautifulSoup
+from lxml import etree
 
 
 class CambodianSpiderSpider(scrapy.Spider):
@@ -84,33 +86,47 @@ class CambodianSpiderSpider(scrapy.Spider):
         remainder = company % 200
         if remainder == 0:
             remainder = 200
+
+        # l = ItemLoader(item=CambodianCompanyItem(), response=response)
+        # word = l.get_xpath(
+        #     "//*[@id='cambodia-master_registerItemSearch']/span/text()",
+        # )
+        # print("===============================")
+        # print(word)
+        # print("===============================")
+
         await page.click(
             f"//div[contains (@class, 'appRepeaterRowContent')][{remainder}]//a"
         )
         await page.wait_for_selector(
             "//*[@id='cambodia-br-companies_brViewLocalCompany']/span"
         )
-        # await self.scrape_general(response)
-        l = ItemLoader(item=CambodianCompanyItem(), selector=response)
-        # l.add_xpath(
-        #     "company_name_in_english",
-        #     "//div[contains (@class, 'brViewLocalCompany-tabsBox-detailsTab-details-localNameBox-currentEntityNames-currentEntityName-notNumberNameBox-currentNameWithResBox-notResNameOnlyBox-resNameSelectorBox-item1-ReservedName appAttribute')]/div[2]/text()",
+        # name = await page.evaluate(
+        #     "document.querySelector('#nodeW1026 > div.appAttrValue');"
         # )
-        name = page.query_selector("//*[@id='nodeW539']/div[2]/text()")
-        print(
-            "_________________________________________________________________________"
-        )
-        print(name)
-        print(
-            "_________________________________________________________________________"
-        )
-        await page.close()
-        # return l.load_item()
+        html = await page.content()
+        soup = BeautifulSoup(html, "html.parser")
+        dom = etree.HTML(str(soup))
+        l = ItemLoader(item=CambodianCompanyItem())
+        await self.scrape_general(dom, l)
+        return l.load_item()
+        # print("==========================")
+        # print(
+        #     dom.xpath(
+        #         "//div[@class='appTabSelected']//div[@class='appAttrLabelBox appCompanyName']/../div[2]"
+        #     )[0].text
+        # )
+        # print("==========================")
 
-    # async def scrape_general(self, response):
+    #     await page.close()
+    #     # return l.load_item()
 
-    #     # await self.scrape_addresses(response)
-    #     return l.load_item()
+    async def scrape_general(self, dom, l):
+        company_name_in_english = dom.xpath(
+            "//div[@class='appTabSelected']//div[@class='appAttrLabelBox appCompanyName']/../div[2]"
+        )[0].text
+        l.add_value("company_name_in_english", company_name_in_english)
+        # await self.scrape_addresses(response)
 
     # async def scrape_addresses(self, response):
     #     print("___________________")
