@@ -74,6 +74,8 @@ class CambodianSpiderSpider(scrapy.Spider):
     async def parse(self, response):
         page = response.meta["playwright_page"]
         company = response.meta["link"]
+
+        # Pagination.
         if company / 200 > 1:
             for _ in range(int(company / 200)):
                 await page.click(
@@ -87,57 +89,65 @@ class CambodianSpiderSpider(scrapy.Spider):
         if remainder == 0:
             remainder = 200
 
-        # l = ItemLoader(item=CambodianCompanyItem(), response=response)
-        # word = l.get_xpath(
-        #     "//*[@id='cambodia-master_registerItemSearch']/span/text()",
-        # )
-        # print("===============================")
-        # print(word)
-        # print("===============================")
-
+        # Opens companies by clicking.
         await page.click(
             f"//div[contains (@class, 'appRepeaterRowContent')][{remainder}]//a"
         )
         await page.wait_for_selector(
             "//*[@id='cambodia-br-companies_brViewLocalCompany']/span"
         )
-        # name = await page.evaluate(
-        #     "document.querySelector('#nodeW1026 > div.appAttrValue');"
-        # )
+
         html = await page.content()
         soup = BeautifulSoup(html, "html.parser")
         dom = etree.HTML(str(soup))
         l = ItemLoader(item=CambodianCompanyItem())
-        await self.scrape_general(dom, l)
-        return l.load_item()
-        # print("==========================")
-        # print(
-        #     dom.xpath(
-        #         "//div[@class='appTabSelected']//div[@class='appAttrLabelBox appCompanyName']/../div[2]"
-        #     )[0].text
-        # )
-        # print("==========================")
 
-    #     await page.close()
-    #     # return l.load_item()
+        # Scrapes general company info from first tab.
+        await self.scrape_general(dom, l)
+        await page.click(
+            "//body/div[1]/div[1]/div[5]/div/div/div[1]/div/form/div/div/div[1]/div/div/div[5]/div/ul/li[2]/a"
+        )
+        await page.wait_for_selector(
+            "//body/div[1]/div[1]/div[5]/div/div/div[1]/div/form/div/div/div[1]/div/div/div[5]/div/div/div/div/div[1]/div[1]/h2"
+        )
+        html = await page.content()
+        soup = BeautifulSoup(html, "html.parser")
+        dom = etree.HTML(str(soup))
+
+        # Scrapes address information.
+        await self.scrape_addresses(dom, l)
+        await page.click(
+            "//body/div[1]/div[1]/div[5]/div/div/div[1]/div/form/div/div/div[1]/div/div/div[5]/div/ul/li[3]/a"
+        )
+        await page.wait_for_selector(
+            "//body/div[1]/div[1]/div[5]/div/div/div[1]/div/form/div/div/div[1]/div/div/div[5]/div/div/div/div/div/div/div[1]/div/div[2]/div/div[1]"
+        )
+        html = await page.content()
+        soup = BeautifulSoup(html, "html.parser")
+        dom = etree.HTML(str(soup))
+
+        # Scrapes directors.
+        await self.scrape_directors(dom, l)
+
+        return l.load_item()
 
     async def scrape_general(self, dom, l):
         company_name_in_english = dom.xpath(
             "//div[@class='appTabSelected']//div[@class='appAttrLabelBox appCompanyName']/../div[2]"
         )[0].text
         l.add_value("company_name_in_english", company_name_in_english)
-        # await self.scrape_addresses(response)
 
-    # async def scrape_addresses(self, response):
-    #     print("___________________")
-    #     print("scraped addresses")
-    #     print("___________________")
-    #     await self.scrape_directors(response)
+    async def scrape_addresses(self, dom, l):
+        addresses = dom.xpath(
+            "//body/div[1]/div[1]/div[5]/div/div/div[1]/div/form/div/div/div[1]/div/div/div[5]/div/div/div/div/div[1]/div[2]/div[1]/div/div/div/div/div/div/div[2]/div/div/div[1]/div/div[2]/div/div/div/div[1]/div[2]"
+        )[0].text
+        l.add_value("addresses", addresses)
 
-    # async def scrape_directors(self, response):
-    #     print("___________________")
-    #     print("scraped directors")
-    #     print("___________________")
+    async def scrape_directors(self, dom, l):
+        directors = dom.xpath(
+            "//body/div[1]/div[1]/div[5]/div/div/div[1]/div/form/div/div/div[1]/div/div/div[5]/div/div/div/div/div/div/div[1]/div/div[2]/div/div[2]/div/div/div/div[1]/div/div/div/div[2]/div[2]"
+        )[0].text
+        l.add_value("directors", directors)
 
     async def errback(self, failure):
         page = failure.request.meta["playwright_page"]

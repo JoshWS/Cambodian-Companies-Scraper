@@ -19,6 +19,6 @@ class CambodianCompanyItem(scrapy.Item):
 
     # business_activities = scrapy.Field()
 
-    # addresses = scrapy.Field()
+    addresses = scrapy.Field()
 
-    # directors = scrapy.Field()
+    directors = scrapy.Field()
