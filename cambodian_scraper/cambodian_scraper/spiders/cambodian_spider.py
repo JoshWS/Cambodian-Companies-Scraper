@@ -104,50 +104,272 @@ class CambodianSpiderSpider(scrapy.Spider):
 
         # Scrapes general company info from first tab.
         await self.scrape_general(dom, l)
+
+        # Clicks on addresses tab and waits for it to load.
         await page.click(
             "//body/div[1]/div[1]/div[5]/div/div/div[1]/div/form/div/div/div[1]/div/div/div[5]/div/ul/li[2]/a"
         )
-        await page.wait_for_selector(
-            "//body/div[1]/div[1]/div[5]/div/div/div[1]/div/form/div/div/div[1]/div/div/div[5]/div/div/div/div/div[1]/div[1]/h2"
-        )
+        await page.wait_for_selector("//a[@class='appExpando appExpandoCollapsed']")
+
         html = await page.content()
         soup = BeautifulSoup(html, "html.parser")
         dom = etree.HTML(str(soup))
 
         # Scrapes address information.
         await self.scrape_addresses(dom, l)
-        await page.click(
-            "//body/div[1]/div[1]/div[5]/div/div/div[1]/div/form/div/div/div[1]/div/div/div[5]/div/ul/li[3]/a"
-        )
-        await page.wait_for_selector(
-            "//body/div[1]/div[1]/div[5]/div/div/div[1]/div/form/div/div/div[1]/div/div/div[5]/div/div/div/div/div/div/div[1]/div/div[2]/div/div[1]"
-        )
-        html = await page.content()
-        soup = BeautifulSoup(html, "html.parser")
-        dom = etree.HTML(str(soup))
 
-        # Scrapes directors.
-        await self.scrape_directors(dom, l)
+        # # Clicks on directors tab and wait for it to load.
+        # await page.click(
+        #     "//body/div[1]/div[1]/div[5]/div/div/div[1]/div/form/div/div/div[1]/div/div/div[5]/div/ul/li[3]/a"
+        # )
+        # await page.wait_for_selector(
+        #     "//body/div[1]/div[1]/div[5]/div/div/div[1]/div/form/div/div/div[1]/div/div/div[5]/div/div/div/div/div/div/div[1]/div/div[2]/div/div[1]"
+        # )
+        # html = await page.content()
+        # soup = BeautifulSoup(html, "html.parser")
+        # dom = etree.HTML(str(soup))
 
+        # # Scrapes directors.
+        # await self.scrape_directors(dom, l)
+        await page.close()
         return l.load_item()
 
     async def scrape_general(self, dom, l):
+        # Scrapes company ID.
+        company_id = dom.xpath(
+            "//div[contains (@class, 'appSingleLineNonBlank brViewLocalCompany-companyContextBox-item3')]/div[2]"
+        )[0].text
+        company_id = company_id.split("(", 2)[-1].split(")")[0]
+        l.add_value("company_id", company_id)
+
+        # Scrapes company name in khmer.
+        company_name_in_khmer = dom.xpath(
+            "//div[contains (@class, 'NameInKhmer')]/div[2]"
+        )
+        if company_name_in_khmer:
+            if not company_name_in_khmer[0].text == "\u00a0":
+                l.add_value(
+                    "company_name_in_khmer",
+                    company_name_in_khmer[0].text,
+                )
+
+        # Scrapes company name in english.
         company_name_in_english = dom.xpath(
             "//div[@class='appTabSelected']//div[@class='appAttrLabelBox appCompanyName']/../div[2]"
-        )[0].text
-        l.add_value("company_name_in_english", company_name_in_english)
+        )
+        if company_name_in_english:
+            if not company_name_in_english[0].text == "\u00a0":
+                l.add_value(
+                    "company_name_in_english",
+                    company_name_in_english[0].text,
+                )
+
+        # Scrapes original entity identifier.
+        original_entity_identifier = dom.xpath(
+            "//div[contains (@class, 'OriginalVersionIdentifier')]/div[2]"
+        )
+        if original_entity_identifier:
+            if not (original_entity_identifier[0].text == "\u00a0"):
+                l.add_value(
+                    "original_entity_identifier",
+                    original_entity_identifier[0].text,
+                )
+
+        # Scrapes company status.
+        company_status = dom.xpath(
+            "//div[contains (@class, 'Attribute-Status')]/div[2]"
+        )
+        if company_status:
+            if not company_status[0].text == "\u00a0":
+                l.add_value(
+                    "company_status",
+                    company_status[0].text,
+                )
+
+        # Scrapes incorporation date.
+        incorporation_date = dom.xpath(
+            "//div[contains (@class, 'brViewLocalCompany-tabsBox-detailsTab-details-hideAttributesBox-RegistrationDate')]/div[2]"
+        )
+        if incorporation_date:
+            if not incorporation_date[0].text == "\u00a0":
+                l.add_value(
+                    "incorporation_date",
+                    incorporation_date[0].text,
+                )
+
+        # Scrapes re registration date.
+        re_registration_date = dom.xpath(
+            "//div[contains (@class, 'ReregistrationDate')]/div[2]"
+        )
+        if re_registration_date:
+            if not re_registration_date[0].text == "\u00a0":
+                l.add_value(
+                    "re_registration_date",
+                    re_registration_date[0].text,
+                )
+
+        # Scrapes tax identification number tin.
+        tax_identification_number_tin = dom.xpath(
+            "//div[contains (@class, 'brViewLocalCompany-tabsBox-detailsTab-details-tinBox-taxIdentificationNumber-TIN appAttribute')]/div[2]"
+        )
+        if tax_identification_number_tin:
+            if not (tax_identification_number_tin[0].text == "\u00a0"):
+                l.add_value(
+                    "tax_identification_number_tin",
+                    tax_identification_number_tin[0].text,
+                )
+
+        # Scrapes tax registration date.
+        tax_registration_date = dom.xpath(
+            "//div[contains (@class, 'TINRegistrationDate')]/div[2]"
+        )
+        if tax_registration_date:
+            if not (tax_registration_date[0].text == "\u00a0"):
+                l.add_value(
+                    "tax_registration_date",
+                    tax_registration_date[0].text,
+                )
+
+        # Scrapes annual return last filed on date.
+        annual_return_last_filed_on = dom.xpath(
+            "//div[contains (@class, 'LatestAnnualFiling')]/div[2]"
+        )
+        if annual_return_last_filed_on:
+            if not (annual_return_last_filed_on[0].text == "\u00a0"):
+                l.add_value(
+                    "annual_return_last_filed_on",
+                    annual_return_last_filed_on[0].text,
+                )
+
+        # Scrapes business activities.
+        business_activities = {}
+        activities = dom.xpath(
+            "//div[contains (@class, 'appRowsCondensed')]/div/div/div"
+        )
+        for count in range(len(activities)):
+            objective = dom.xpath(
+                f"//div[contains (@class, 'appRowsCondensed')]/div/div[{count + 1}]/div/div/div[1]/div[2]"
+            )[0].text
+            main_business_activities = dom.xpath(
+                f"//div[contains (@class, 'appRowsCondensed')]/div/div[{count + 1}]/div/div/div[2]/div[2]"
+            )[0].text
+            entry = {
+                "objective": objective,
+                "main_business_activities": main_business_activities,
+            }
+            business_activities[count] = entry
+        l.add_value("business_activities", business_activities)
+
+        # Scrapes number of employees.
+        number_of_employees = {}
+
+        # Scrapes male employees.
+        male = dom.xpath("//div[contains (@class, 'TotalEmployeesMale')]/div[2]")
+        if male:
+            if not male[0].text == "\u00a0":
+                if not male[0].text == "0":
+                    number_of_employees["male"] = male[0].text
+
+        # Scrapes female employees.
+        female = dom.xpath("//div[contains (@class, 'TotalEmployeesFemale')]/div[2]")
+        if female:
+            if not female[0].text == "\u00a0":
+                if not female[0].text == "0":
+                    number_of_employees["female"] = female[0].text
+
+        # Scrapes number of cambodian employees.
+        number_of_cambodian_employees = dom.xpath(
+            "//div[contains (@class, 'TotalCambodianEmployees')]/div[2]"
+        )
+        if number_of_cambodian_employees:
+            if not number_of_cambodian_employees[0].text == "\u00a0":
+                if not number_of_cambodian_employees[0].text == "0":
+                    number_of_employees[
+                        "number_of_cambodian_employees"
+                    ] = number_of_cambodian_employees[0].text
+
+        # Scrapes number of foreign employees.
+        number_of_foreign_employees = dom.xpath(
+            "//div[contains (@class, 'TotalForeignEmployees')]/div[2]"
+        )
+        if number_of_foreign_employees:
+            if not number_of_foreign_employees[0].text == "\u00a0":
+                if not number_of_foreign_employees[0].text == "0":
+                    number_of_employees[
+                        "number_of_foreign_employees"
+                    ] = number_of_foreign_employees
+        if number_of_employees:
+            l.add_value("number_of_employees", number_of_employees)
 
     async def scrape_addresses(self, dom, l):
-        addresses = dom.xpath(
-            "//body/div[1]/div[1]/div[5]/div/div/div[1]/div/form/div/div/div[1]/div/div/div[5]/div/div/div/div/div[1]/div[2]/div[1]/div/div/div/div/div/div/div[2]/div/div/div[1]/div/div[2]/div/div/div/div[1]/div[2]"
+        # Scrapes addresses.
+        addresses = {}
+        historic_office_addresses = {}
+
+        # Scrapes physical registered office addresses.
+        Physical_registered_office_address = dom.xpath(
+            "//div[contains (@class, 'Current')]//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-registeredOfficeAddressPhysicalBox-registeredOfficeAddressPhysical-withEvidenceUpload-editAddress-categorizerBox-physicalAddresses-physicalAddress-address ')]/div[2]"
         )[0].text
+        start_date = dom.xpath(
+            "(//div[contains (@class, 'Current')]//div[contains (@class, 'StartDate')]/div[2])[1]"
+        )[0].text
+        physical_office_addresses = {
+            "Physical_registered_office_address": Physical_registered_office_address,
+            "start_date": start_date,
+        }
+        addresses["physical_office_addresses"] = physical_office_addresses
+
+        # Scrapes historic office addresses.
+        historic_addresses = dom.xpath(
+            "//div[@class='appCategory Historic']//div[contains (@class, 'appDialogRepeaterRowContent')]"
+        )
+        for count in range(len(historic_addresses)):
+            physical_registered_office_address = dom.xpath(
+                f"//div[@class='appCategory Historic']//div[contains (@class, 'appDialogRepeaterRowContent')][{count + 1}]/div/div/div/div[2]"
+            )[0].text
+            start_date = dom.xpath(
+                f"(//div[@class='appCategory Historic']//div[contains (@class, 'appDialogRepeaterRowContent')][{count + 1}]/div/div/div/div/div/div[2])[1]"
+            )[0].text
+            end_date = dom.xpath(
+                f"(//div[@class='appCategory Historic']//div[contains (@class, 'appDialogRepeaterRowContent')][{count + 1}]/div/div/div/div/div/div[2])[2]"
+            )[0].text
+
+            entry = {
+                "physical_registered_office_address": physical_registered_office_address,
+                "start_date": start_date,
+                "end_date": end_date,
+            }
+            historic_office_addresses[count] = entry
+        addresses["historic_office_addresses"] = historic_office_addresses
+
+        # Scrapes postal office addresses.
+        postal_registered_office_address = dom.xpath(
+            f"//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-roaAdditionalAddressesBox')]//div[contains (@class, 'postalAddressRoot')]/div[2]"
+        )[0].text
+        start_date = dom.xpath(
+            f"//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-roaAdditionalAddressesBox')]//div[contains (@class, 'StartDate')]/div[2]"
+        )[0].text
+        contact_email = dom.xpath(
+            f"//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-roaAdditionalAddressesBox')]//div[contains (@class, 'EntityEmailAddresses')]/div[2]"
+        )[0].text
+        contact_telephone_number = dom.xpath(
+            f"//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-roaAdditionalAddressesBox')]//div[contains (@class, 'appPhoneNumber')]/div[2]"
+        )[0].text
+        postal_office_address = {
+            "postal_registered_office_address": postal_registered_office_address,
+            "start_date": start_date,
+            "contact_email": contact_email,
+            "contact_telephone_number": contact_telephone_number,
+        }
+        addresses["postal_office_address"] = postal_office_address
+
         l.add_value("addresses", addresses)
 
-    async def scrape_directors(self, dom, l):
-        directors = dom.xpath(
-            "//body/div[1]/div[1]/div[5]/div/div/div[1]/div/form/div/div/div[1]/div/div/div[5]/div/div/div/div/div/div/div[1]/div/div[2]/div/div[2]/div/div/div/div[1]/div/div/div/div[2]/div[2]"
-        )[0].text
-        l.add_value("directors", directors)
+    # async def scrape_directors(self, dom, l):
+    #     directors = dom.xpath(
+    #         "//body/div[1]/div[1]/div[5]/div/div/div[1]/div/form/div/div/div[1]/div/div/div[5]/div/div/div/div/div/div/div[1]/div/div[2]/div/div[2]/div/div/div/div[1]/div/div/div/div[2]/div[2]"
+    #     )[0].text
+    #     l.add_value("directors", directors)
 
     async def errback(self, failure):
         page = failure.request.meta["playwright_page"]
