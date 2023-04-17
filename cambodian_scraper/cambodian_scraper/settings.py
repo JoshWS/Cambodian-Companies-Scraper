@@ -32,7 +32,7 @@ ROBOTSTXT_OBEY = False
 # Configure a delay for requests for the same website (default: 0)
 # See https://docs.scrapy.org/en/latest/topics/settings.html#download-delay
 # See also autothrottle settings and docs
-# DOWNLOAD_DELAY = 3
+DOWNLOAD_DELAY = 2
 # The download delay setting will honor only one of:
 # CONCURRENT_REQUESTS_PER_DOMAIN = 16
 # CONCURRENT_REQUESTS_PER_IP = 16
@@ -59,10 +59,10 @@ COOKIES_ENABLED = True
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 DOWNLOADER_MIDDLEWARES = {
     "cambodian_scraper.middlewares.CambodianScraperDownloaderMiddleware": None,
-    "scrapy.downloadermiddlewares.useragent.UserAgentMiddleware": None,
-    "scrapy.downloadermiddlewares.retry.RetryMiddleware": None,
-    # "scrapy_fake_useragent.middleware.RandomUserAgentMiddleware": 400,
-    # "scrapy_fake_useragent.middleware.RetryUserAgentMiddleware": 401,
+    "scrapy.downloadermiddlewares.useragent.UserAgentMiddleware": 300,
+    "scrapy.downloadermiddlewares.retry.RetryMiddleware": 350,
+    "scrapy_fake_useragent.middleware.RandomUserAgentMiddleware": 400,
+    "scrapy_fake_useragent.middleware.RetryUserAgentMiddleware": 401,
 }
 
 ENABLE_ROTATING_PROXIES = False
@@ -88,9 +88,26 @@ PLAYWRIGHT_LAUNCH_OPTIONS = {"headless": False}
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-# ITEM_PIPELINES = {
-#    'cambodian_scraper.pipelines.CambodianScraperPipeline': 300,
-# }
+ITEM_PIPELINES = {
+    "cambodian_scraper.mongo.MongoDBPipeline": 500,
+}
+
+FEED_EXPORT_FIELDS = [
+    "company_id",
+    "company_name_in_khmer",
+    "company_name_in_english",
+    "original_entity_identifier",
+    "company_status",
+    "incorporation_date",
+    "re_registration_date",
+    "tax_identification_number_tin",
+    "tax_registration_date",
+    "annual_return_last_filed_on",
+    "business_activities",
+    "number_of_employees",
+    "addresses",
+    "directors",
+]
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
