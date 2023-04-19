@@ -18,6 +18,7 @@ class CambodianCompanyItem(scrapy.Item):
     tax_identification_number_tin = scrapy.Field(output_processor=TakeFirst())
     tax_registration_date = scrapy.Field(output_processor=TakeFirst())
     annual_return_last_filed_on = scrapy.Field(output_processor=TakeFirst())
+    previous_names = scrapy.Field(output_processor=TakeFirst())
 
     business_activities = scrapy.Field(output_processor=TakeFirst())
 

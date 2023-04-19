@@ -28,7 +28,7 @@ class CambodianSpiderSpider(scrapy.Spider):
     }
 
     def start_requests(self):
-        for link in range(1, 7):
+        for link in range(1001, 1002):
             if not os.path.isfile("count.csv"):
                 open("count.csv", "w")
             csvfileread = open("count.csv", "r")
@@ -87,7 +87,6 @@ class CambodianSpiderSpider(scrapy.Spider):
                     dont_filter=True,
                 )
                 csvfileread.close()
-            print(f"Company {link} already scraped!")
 
     async def parse(self, response):
         page = response.meta["playwright_page"]
@@ -285,14 +284,14 @@ class CambodianSpiderSpider(scrapy.Spider):
         # Scrapes business activities.
         business_activities = {}
         activities = dom.xpath(
-            "//div[contains (@class, 'appRowsCondensed')]/div/div/div"
+            "//div[contains (@class, 'brViewLocalCompany-tabsBox-detailsTab-details-localDetailsBox-companyDetails-localBusinessActivitiesBox-businessActivitiesBox-categorizerBoxBusinessActivities')]//div[contains (@class, 'appRepeaterRowContent')]"
         )
         for count in range(len(activities)):
             objective = dom.xpath(
-                f"//div[contains (@class, 'appRowsCondensed')]/div/div[{count + 1}]/div/div/div[1]/div[2]"
+                f"(//div[contains (@class, 'brViewLocalCompany-tabsBox-detailsTab-details-localDetailsBox-companyDetails-localBusinessActivitiesBox-businessActivitiesBox-categorizerBoxBusinessActivities')]//div[contains (@class, 'appRepeaterRowContent')][{count + 1}]//div[@class='appAttrValue'])[1]"
             )[0].text
             main_business_activities = dom.xpath(
-                f"//div[contains (@class, 'appRowsCondensed')]/div/div[{count + 1}]/div/div/div[2]/div[2]"
+                f"(//div[contains (@class, 'brViewLocalCompany-tabsBox-detailsTab-details-localDetailsBox-companyDetails-localBusinessActivitiesBox-businessActivitiesBox-categorizerBoxBusinessActivities')]//div[contains (@class, 'appRepeaterRowContent')][{count + 1}]//div[@class='appAttrValue'])[2]"
             )[0].text
             entry = {
                 "objective": objective,
@@ -342,10 +341,31 @@ class CambodianSpiderSpider(scrapy.Spider):
         if number_of_employees:
             l.add_value("number_of_employees", number_of_employees)
 
+        # Scrapes previous company names.
+        names = {}
+        previous_names = dom.xpath(
+            "//div[contains (@class, 'brViewLocalCompany-tabsBox-detailsTab-details-historicalInformationBox-nameHistoryBox-previousEntityNames-previousEntityName')]//div[contains (@class, 'appAttrText')]"
+        )
+        if previous_names:
+            for count in range(len(previous_names)):
+                name = dom.xpath(
+                    f"(//div[contains (@class, 'brViewLocalCompany-tabsBox-detailsTab-details-historicalInformationBox-nameHistoryBox-previousEntityNames-previousEntityName')]//div[contains (@class, 'appAttrText')])[{count + 1}]"
+                )[0].text
+                names[count] = name
+            start_date = dom.xpath(
+                f"//div[contains (@class, 'brViewLocalCompany-tabsBox-detailsTab-details-historicalInformationBox-nameHistoryBox-previousEntityNames-previousEntityName')]//div[contains (@class, 'StartDate')]/div[2]"
+            )[0].text
+            end_date = dom.xpath(
+                f"//div[contains (@class, 'brViewLocalCompany-tabsBox-detailsTab-details-historicalInformationBox-nameHistoryBox-previousEntityNames-previousEntityName')]//div[contains (@class, 'EndDate')]/div[2]"
+            )[0].text
+            entry = {"names": names, "start_date": start_date, "end_date": end_date}
+            l.add_value("previous_names", entry)
+
     async def scrape_addresses(self, dom, l):
         # Scrapes addresses.
         addresses = {}
-        historic_office_addresses = {}
+        historic_physical_office_addresses = {}
+        historic_postal_office_addresses = {}
 
         # Scrapes physical registered office addresses.
         Physical_registered_office_address = dom.xpath(
@@ -362,7 +382,7 @@ class CambodianSpiderSpider(scrapy.Spider):
 
         # Scrapes historic office addresses.
         historic_addresses = dom.xpath(
-            "//div[@class='appCategory Historic']//div[contains (@class, 'appDialogRepeaterRowContent')]"
+            "//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-registeredOfficeAddressPhysicalBox')]//div[@class='appCategory Historic']//div[contains (@class, 'appDialogRepeaterRowContent')]"
         )
         for count in range(len(historic_addresses)):
             physical_registered_office_address = dom.xpath(
@@ -380,8 +400,8 @@ class CambodianSpiderSpider(scrapy.Spider):
                 "start_date": start_date,
                 "end_date": end_date,
             }
-            historic_office_addresses[str(count)] = entry
-        addresses["historic_office_addresses"] = historic_office_addresses
+            historic_physical_office_addresses[str(count)] = entry
+        addresses["historic_office_addresses"] = historic_physical_office_addresses
 
         # Scrapes postal office addresses.
         postal_registered_office_address = dom.xpath(
@@ -403,6 +423,29 @@ class CambodianSpiderSpider(scrapy.Spider):
             "contact_telephone_number": contact_telephone_number,
         }
         addresses["postal_office_address"] = postal_office_address
+
+        # Scrapes historic postal office addresses.
+        historic_postal_addresses = dom.xpath(
+            "//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-roaAdditionalAddressesBox-registeredOfficeAddressPostalBox-registeredOfficeAddressPostal-withPostalIsPhysical-withoutUpload-editAddress-categorizerBox')]//div[@class='appCategory Historic']//div[contains (@class, 'appDialogRepeaterRowContent')]"
+        )
+        for count in range(len(historic_postal_addresses)):
+            postal_registered_office_address = dom.xpath(
+                f"//div[@class='appCategory Historic']//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-roaAdditionalAddressesBox-registeredOfficeAddressPostalBox-registeredOfficeAddressPostal-withPostalIsPhysical-withoutUpload-editAddress-categorizerBox-postalAddresses')]/div[@class='appDialogRepeaterContent'][{count + 1}]/div/div/div/div[1]/div[2]"
+            )[0].text
+            start_date = dom.xpath(
+                f"(//div[@class='appCategory Historic']//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-roaAdditionalAddressesBox-registeredOfficeAddressPostalBox-registeredOfficeAddressPostal-withPostalIsPhysical-withoutUpload-editAddress-categorizerBox-postalAddresses')]/div[@class='appDialogRepeaterContent'][{count + 1}]/div/div/div/div[2]/div/div/div[2])[1]"
+            )[0].text
+            end_date = dom.xpath(
+                f"(//div[@class='appCategory Historic']//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-roaAdditionalAddressesBox-registeredOfficeAddressPostalBox-registeredOfficeAddressPostal-withPostalIsPhysical-withoutUpload-editAddress-categorizerBox-postalAddresses')]/div[@class='appDialogRepeaterContent'][{count + 1}]/div/div/div/div[2]/div/div/div[2])[1]"
+            )[0].text
+
+            entry = {
+                "postal_registered_office_address": postal_registered_office_address,
+                "start_date": start_date,
+                "end_date": end_date,
+            }
+            historic_postal_office_addresses[str(count)] = entry
+        addresses["historic_postal_office_addresses"] = historic_postal_office_addresses
 
         l.add_value("addresses", addresses)
 
