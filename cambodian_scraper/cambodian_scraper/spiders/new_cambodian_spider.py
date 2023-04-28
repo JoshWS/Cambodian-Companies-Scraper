@@ -8,11 +8,18 @@ from lxml import etree
 import csv
 import os.path
 import math
+import sys
+
+csv.field_size_limit(sys.maxsize)
 
 
 class CambodianSpiderSpider(scrapy.Spider):
-    name = "cambodian_spider"
+    name = "new_cambodian_spider"
     allowed_domains = ["www.businessregistration.moc.gov.kh"]
+
+    custom_settings = {
+        "ITEM_PIPELINES": None,
+    }
 
     HEADERS = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:98.0) Gecko/20100101 Firefox/98.0",
@@ -29,20 +36,23 @@ class CambodianSpiderSpider(scrapy.Spider):
     }
 
     def start_requests(self):
-        save = 27401
-        # re scrape first 300 numbers due to bug that is now fixed
-        # page 3 bug
-        for link in range(601, save):
-            if not os.path.isfile("count.csv"):
-                open("count.csv", "w")
-            csvfileread = open("count.csv", "r")
-            read = csv.reader(csvfileread)
-            numbers = []
-            for row in read:
-                for x in row:
-                    numbers.append(x)
-            csvfileread.close()
-            if not str(link) in numbers:
+        ids = []
+        scraped_ids = []
+        with open("id.csv", "r") as file:
+            csvreader = csv.reader(file)
+            header = next(csvreader)
+            for id in csvreader:
+                for x in id:
+                    ids.append(x)
+        ids = ids[0].split(",")
+
+        with open("scraped_ids.csv", "r") as file:
+            csvreader = csv.reader(file)
+            for id in csvreader:
+                for x in id:
+                    scraped_ids.append(x)
+        for x in ids:
+            if not x in scraped_ids:
                 url = "https://www.businessregistration.moc.gov.kh/cambodia-master/relay.html?url=https%3A%2F%2Fwww.businessregistration.moc.gov.kh%2Fcambodia-master%2Fservice%2Fcreate.html%3FtargetAppCode%3Dcambodia-master%26targetRegisterAppCode%3Dcambodia-br-companies%26service%3DregisterItemSearch&target=cambodia-master"
                 yield scrapy.Request(
                     url,
@@ -55,7 +65,7 @@ class CambodianSpiderSpider(scrapy.Spider):
                             ),
                             PageMethod(
                                 "fill",
-                                value="000",
+                                value=f"{x}",
                                 selector="//input[@id='QueryString']",
                             ),
                             PageMethod(
@@ -64,84 +74,26 @@ class CambodianSpiderSpider(scrapy.Spider):
                             ),
                             PageMethod(
                                 "wait_for_selector",
-                                "//div[@class='appRepeaterRowContent appRowOdd appRowFirst']",
+                                "//div[contains (@class, 'appRepeaterRowContent appRowOdd appRowFirst')]//a[contains (@class, 'appItemSearchResult')]",
                             ),
                             PageMethod(
                                 "click",
-                                selector="//div[@class='appSearchPageSize']/select",
-                            ),
-                            PageMethod(
-                                "press",
-                                key="ArrowDown+ArrowDown+ArrowDown+ArrowDown",
-                                selector="//div[@class='appSearchPageSize']/select",
-                            ),
-                            PageMethod(
-                                "press",
-                                key="Enter",
-                                selector="//div[@class='appSearchPageSize']/select",
+                                selector="//div[contains (@class, 'appRepeaterRowContent appRowOdd appRowFirst')]//a[contains (@class, 'appItemSearchResult')]",
                             ),
                             PageMethod(
                                 "wait_for_selector",
-                                "//div[contains (@class, 'appRepeaterRowContent')][200]",
+                                "//div[contains (@class, 'NameInKhmer')]/div[2]",
                             ),
                         ],
                         callback=self.parse,
                         errback=self.errback,
-                        link=link,
+                        id=x,
                     ),
                     dont_filter=True,
                 )
 
     async def parse(self, response):
         page = response.meta["playwright_page"]
-        company = response.meta["link"]
-
-        # Pagination.
-        required_page = math.ceil(company / 200)
-        if required_page > 1:
-            while True:
-                html = await page.content()
-                soup = BeautifulSoup(html, "html.parser")
-                dom = etree.HTML(str(soup))
-                current_pages_raw = dom.xpath(
-                    "//div[contains (@class, 'appPagerContainerHeader')]//div[@class='appPages']/a"
-                )
-                current_pages = []
-                for raw in current_pages_raw:
-                    current_pages.append(raw.text)
-                if str(required_page) in current_pages:
-                    await page.click(
-                        f"//div[contains (@class, 'appPagerContainerHeader')]//div[@class='appPages']/a[text()='{required_page}']"
-                    )
-                    await page.wait_for_selector(
-                        f"//div[contains (@class, 'appPagerContainerHeader')]//div[@class='appPages']/span[text()='{required_page}']"
-                    )
-                    await page.wait_for_selector(
-                        f"//div[contains (@class, 'appRepeaterRowContent')]//a"
-                    )
-                    break
-                else:
-                    skip = dom.xpath(
-                        f"//div[contains (@class, 'appPagerContainerHeader')]//div[@class='appPages']/a[last()-1]"
-                    )[0].text
-                    await page.click(
-                        f"//div[contains (@class, 'appPagerContainerHeader')]//div[@class='appPages']/a[last()-1]"
-                    )
-                    await page.wait_for_selector(
-                        f"//div[contains (@class, 'appPagerContainerHeader')]//div[@class='appPages']/span[text()='{skip}']"
-                    )
-                    await page.wait_for_selector(
-                        f"//div[contains (@class, 'appRepeaterRowContent')]//a"
-                    )
-
-        # Opens companies by clicking.
-        remainder = company % 200
-        if remainder == 0:
-            remainder = 200
-        await page.click(
-            f"//div[contains (@class, 'appRepeaterRowContent')][{remainder}]//a"
-        )
-        await page.wait_for_selector("//div[contains (@class, 'NameInKhmer')]/div[2]")
 
         html = await page.content()
         soup = BeautifulSoup(html, "html.parser")
@@ -189,19 +141,19 @@ class CambodianSpiderSpider(scrapy.Spider):
         await self.scrape_directors(dom, l)
 
         # Keeps track of scraped companies.
-        csvfile = open("count.csv", "a", newline="")
+        csvfile = open("scraped_ids.csv", "a", newline="")
         obj = csv.writer(csvfile)
-        y = response.meta["link"]
+        id = response.meta["id"]
 
-        csvfileread = open("count.csv", "r")
+        csvfileread = open("scraped_ids.csv", "r")
         read = csv.reader(csvfileread)
         numbers = []
         for row in read:
             for x in row:
                 numbers.append(x)
-        if not str(y) in numbers:
-            y = str(y)
-            current_number_fixed = [y]
+        if not str(id) in numbers:
+            id = str(id)
+            current_number_fixed = [id]
             obj.writerow(current_number_fixed)
 
         csvfile.close()
