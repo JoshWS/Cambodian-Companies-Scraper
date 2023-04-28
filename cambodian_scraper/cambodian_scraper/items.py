@@ -24,6 +24,8 @@ class CambodianCompanyItem(scrapy.Item):
 
     number_of_employees = scrapy.Field(output_processor=TakeFirst())
 
+    parent_company = scrapy.Field(output_processor=TakeFirst())
+
     addresses = scrapy.Field(output_processor=TakeFirst())
 
     directors = scrapy.Field(output_processor=TakeFirst())

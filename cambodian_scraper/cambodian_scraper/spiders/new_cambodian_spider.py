@@ -1,13 +1,10 @@
 import scrapy
 from scrapy.loader import ItemLoader
-from parsel import Selector
 from cambodian_scraper.items import CambodianCompanyItem
 from scrapy_playwright.page import PageMethod
 from bs4 import BeautifulSoup
 from lxml import etree
 import csv
-import os.path
-import math
 import sys
 
 csv.field_size_limit(sys.maxsize)
@@ -16,7 +13,9 @@ csv.field_size_limit(sys.maxsize)
 class CambodianSpiderSpider(scrapy.Spider):
     name = "new_cambodian_spider"
     allowed_domains = ["www.businessregistration.moc.gov.kh"]
-
+    custom_settings = {
+        "ITEM_PIPELINES": None,
+    }
     HEADERS = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:98.0) Gecko/20100101 Firefox/98.0",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -90,28 +89,41 @@ class CambodianSpiderSpider(scrapy.Spider):
 
     async def parse(self, response):
         page = response.meta["playwright_page"]
+        company_id = response.meta["id"]
 
         html = await page.content()
         soup = BeautifulSoup(html, "html.parser")
         dom = etree.HTML(str(soup))
         l = ItemLoader(item=CambodianCompanyItem())
 
+        # Scrapes general company info from first tab.
+        await self.scrape_general(dom, l, company_id)
+
         foreign_company = dom.xpath(
             "//div[contains (@class, 'brViewOverseasCompany-tabsBox')]/ul/li[2]/a/span"
         )
         if foreign_company:
             if foreign_company[0].text == "Parent Company":
-                await self.errback(response)
+                # Clicks on parent company tab and waits for it to load.
+                await page.click(
+                    "//ul[@class='appTabs']//span[contains (text(), 'Parent Company')]/.."
+                )
+                await page.wait_for_selector(
+                    "//div[@class='appTabSelected']//div[contains (@class, 'Attribute-ParentCompanyName')]/div[2]"
+                )
 
-        # Scrapes general company info from first tab.
-        await self.scrape_general(dom, l)
+                html = await page.content()
+                soup = BeautifulSoup(html, "html.parser")
+                dom = etree.HTML(str(soup))
+
+                await self.scrape_parent_company(dom, l)
 
         # Clicks on addresses tab and waits for it to load.
         await page.click(
-            "//div[contains (@class, 'brViewLocalCompany-tabsBox')]/ul/li[2]/a"
+            "//ul[@class='appTabs']//span[contains (text(), 'Addresses')]/.."
         )
         await page.wait_for_selector(
-            "//div[contains (@class, 'Current')]//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-registeredOfficeAddressPhysicalBox-registeredOfficeAddressPhysical-withEvidenceUpload-editAddress-categorizerBox-physicalAddresses-physicalAddress-address ')]/div[2]"
+            "//div[contains (@class, 'Current')]//div[contains (@class, 'appPhysicalAddress')]//div[contains (@class, 'appAttribute address')]/div[2]"
         )
 
         html = await page.content()
@@ -123,7 +135,7 @@ class CambodianSpiderSpider(scrapy.Spider):
 
         # Clicks on directors tab and wait for it to load.
         await page.click(
-            "//div[contains (@class, 'brViewLocalCompany-tabsBox')]/ul/li[3]/a"
+            "//ul[@class='appTabs']//span[contains (text(), 'Directors')]/.."
         )
         await page.wait_for_selector(
             "//div[@class='appTabSelected']//div[contains (@class, 'individualNameEnglish')]/div[2]"
@@ -158,12 +170,8 @@ class CambodianSpiderSpider(scrapy.Spider):
         await page.close()
         return l.load_item()
 
-    async def scrape_general(self, dom, l):
+    async def scrape_general(self, dom, l, company_id):
         # Scrapes company ID.
-        company_id = dom.xpath(
-            "//div[contains (@class, 'appSingleLineNonBlank brViewLocalCompany-companyContextBox-item3')]/div[2]"
-        )[0].text
-        company_id = company_id.split("(", 2)[-1].split(")")[0]
         l.add_value("company_id", company_id)
 
         # Scrapes company name in khmer.
@@ -345,6 +353,54 @@ class CambodianSpiderSpider(scrapy.Spider):
             entry = {"names": names, "start_date": start_date, "end_date": end_date}
             l.add_value("previous_names", entry)
 
+    async def scrape_parent_company(self, dom, l):
+        # Scrapes parent company tab.
+        full_name_of_parent_company = dom.xpath(
+            "//div[@class='appTabSelected']//div[contains (@class, 'Attribute-ParentCompanyName')]/div[2]"
+        )[0].text
+        address_of_parent_company = dom.xpath(
+            "//div[@class='appTabSelected']//div[contains (@class, 'postalAddressRoot')]/div[2]"
+        )[0].text
+        start_date = dom.xpath(
+            "//div[@class='appTabSelected']//div[contains (@class, 'StartDate')]/div[2]"
+        )[0].text
+        commercial_registration_number_of_parent_company = dom.xpath(
+            "//div[@class='appTabSelected']//div[contains (@class, 'Attribute-ParentRegistrationNumber')]/div[2]"
+        )[0].text
+        date_of_registration_of_parent_company = dom.xpath(
+            "//div[@class='appTabSelected']//div[contains (@class, 'Attribute-ParentRegistrationDate')]/div[2]"
+        )[0].text
+        country_of_registration_of_parent_company = dom.xpath(
+            "//div[@class='appTabSelected']//div[contains (@class, 'appDc-country')]/div[2]"
+        )[0].text
+        further_details_of_jurisdiction_of_parent_company = dom.xpath(
+            "//div[@class='appTabSelected']//div[contains (@class, 'Attribute-ParentJurisdictionDetails')]/div[2]"
+        )
+
+        criminal_conduct_and_consent = dom.xpath(
+            "//div[@class='appTabSelected']//div[contains (@class, 'Attribute-ParentCompanyConsentYn')]/div[2]"
+        )[0].text
+        parent_company = {
+            "full_name_of_parent_company": full_name_of_parent_company,
+            "address_of_parent_company": address_of_parent_company,
+            "start_date": start_date,
+            "commercial_registration_number_of_parent_company": commercial_registration_number_of_parent_company,
+            "date_of_registration_of_parent_company": date_of_registration_of_parent_company,
+            "country_of_registration_of_parent_company": country_of_registration_of_parent_company,
+            "criminal_conduct_and_consent": criminal_conduct_and_consent,
+        }
+        if further_details_of_jurisdiction_of_parent_company:
+            if not (
+                further_details_of_jurisdiction_of_parent_company[0].text == "\u00a0"
+            ):
+                if not (
+                    further_details_of_jurisdiction_of_parent_company[0].text == "0"
+                ):
+                    parent_company[
+                        "further_details_of_jurisdiction_of_parent_company"
+                    ] = further_details_of_jurisdiction_of_parent_company[0].text
+        l.add_value("parent_company", parent_company)
+
     async def scrape_addresses(self, dom, l):
         # Scrapes addresses.
         addresses = {}
@@ -353,7 +409,7 @@ class CambodianSpiderSpider(scrapy.Spider):
 
         # Scrapes physical registered office addresses.
         Physical_registered_office_address = dom.xpath(
-            "//div[contains (@class, 'Current')]//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-registeredOfficeAddressPhysicalBox-registeredOfficeAddressPhysical-withEvidenceUpload-editAddress-categorizerBox-physicalAddresses-physicalAddress-address ')]/div[2]"
+            "//div[contains (@class, 'Current')]//div[contains (@class, 'appPhysicalAddress')]//div[contains (@class, 'appAttribute address')]/div[2]"
         )[0].text
         start_date = dom.xpath(
             "(//div[contains (@class, 'Current')]//div[contains (@class, 'StartDate')]/div[2])[1]"
@@ -389,16 +445,16 @@ class CambodianSpiderSpider(scrapy.Spider):
 
         # Scrapes postal office addresses.
         postal_registered_office_address = dom.xpath(
-            f"//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-roaAdditionalAddressesBox')]//div[contains (@class, 'appCategory Current')]//div[contains (@class, 'postalAddressRoot')]/div[2]"
+            f"//div[contains (@class, 'appPostalAddress')]/div/div/div[2]"
         )[0].text
         start_date = dom.xpath(
-            f"//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-roaAdditionalAddressesBox')]//div[contains (@class, 'appCategory Current')]//div[contains (@class, 'StartDate')]/div[2]"
+            f"//div[contains (@class, 'appPostalAddress')]/div/div[2]/div/div/div[2]"
         )[0].text
         contact_email = dom.xpath(
-            f"//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-roaAdditionalAddressesBox')]//div[contains (@class, 'EntityEmailAddresses')]/div[2]"
+            f"//div[contains (@class, 'EntityEmailAddresses')]/div[2]"
         )[0].text
         contact_telephone_number = dom.xpath(
-            f"//div[contains (@class, 'brViewLocalCompany-tabsBox-addressesTab-roaBox-roaAdditionalAddressesBox')]//div[contains (@class, 'appPhoneNumber')]/div[2]"
+            f"//div[contains (@class, 'appPhoneNumber')]/div[2]"
         )[0].text
         postal_office_address = {
             "postal_registered_office_address": postal_registered_office_address,
